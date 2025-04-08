@@ -1,0 +1,771 @@
+setwd("E:/李杏春/博士/数据分析/真菌数据分析/数据分析OTU/root.leaf.fun_510")
+load("E:/李杏春/博士/数据分析/真菌数据分析/数据分析OTU/root.leaf.fun_510/fun.simpson.RData")
+
+leaf.otu1<-read.csv("leaf.fun.otu_510.csv",header = TRUE,row.names = 1)
+leaf.otu<-leaf.otu1[,c(9:2296)]
+root.otu<-read.csv("root.fun.otu_510.csv",header = TRUE,row.names = 1)
+fun.env<-read.csv("fun.simpson.env_510.csv",header = TRUE)
+rownames(fun.env)<-fun.env$Sample.No.
+leaf.env<-fun.env[c(1:2288),]
+end.env<-fun.env[c(1:1094),]
+epi.env<-fun.env[c(1095:2288),]
+root.env<-fun.env[c(2289:3764),]
+patho.env<-read.csv("leaf.patho.simpson.env_50.csv",header = TRUE,row.names = 1)
+epi.patho <- patho.env[patho.env$group == 'Epiphytic fungi',]
+end.patho <- patho.env[patho.env$group == 'Endophytic fungi',]
+
+#sample.map#
+
+rm(list=ls())
+load("E:/李杏春/博士/数据分析/R命令/WangC_NC_code/CForBio.metagenome-Update/FunCongWang-CForBio.metagenome-bc84785/data/CFB.samplesitemap.Rdata")
+
+library(ggspatial)
+library(sf)
+library(maptools)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(cowplot)
+library(colorRamps)
+library(ggrepel)
+library(nlme)
+library(MuMIn)
+library(lmerTest)
+library(itol.toolkit)
+
+site.CFB<-read.csv("leaf.root.site.lat.csv",header = TRUE)
+site.CFB2<-st_as_sf(site.CFB,coords=c("longitude","latitude"),crs=4326)
+#site.CFB2$Site<-factor(site.CFB2$sample_name,levels = c("GH","LS", "CBS", "DLS", "BTM","TTS" ,"BDGS", "GTS", "HSD" , "DHS", "NG", "XSBN"))
+
+mapCN<-ggplot() + 
+  geom_sf(data = china,fill="NA",color="grey",size=0.5) + 
+  #geom_sf(data = nine_line,color="black",size=0.5) + 
+  scale_size(range = c(1,5))+
+  annotation_scale(location = "bl") +
+  annotation_north_arrow(location = "tl", which_north = "true",
+                         style = north_arrow_fancy_orienteering)+
+  geom_sf(data=site.CFB2,aes(color=group),size=3)+
+  geom_text_repel(data = site.CFB2,aes(label=sample_name,geometry=geometry),stat = "sf_coordinates",color="black",size=5)+
+  #annotate("text",x=-2556175.2,y=-2387082,label="GS京(2022)1061号",size=3)+
+  scale_colour_manual(values= c("blue", "green", "red"),name="Sample type")+
+  coord_sf(ylim = c(-2387082,1654989),xlim = c(-2556175.2,2816095),crs = "+proj=laea +lat_0=40 +lon_0=104")+
+  theme_bw()+xlab("Longitude")+ylab("Latitude")+
+  theme(plot.margin=unit(c(0,0,0,0),"mm"),
+        axis.text = element_text(size = 16,colour = "black",face = "bold"),
+        axis.title = element_text(size = 16,colour = "black",face = "bold"))
+
+mapCN_nineline<-ggplot() + 
+  geom_sf(data = china,fill="NA",color="grey",size=0.5) +
+  scale_size(range = c(1,5))+
+  annotation_scale(location = "br") +
+  coord_sf(ylim = c(-4228017,-1877844),xlim = c(117131.4,2115095),crs="+proj=laea +lat_0=40 +lon_0=104")+
+  theme_bw()+theme(aspect.ratio = 1.5,plot.margin=unit(c(0,0,0,0),"mm"))
+
+p9<-ggdraw()+
+  draw_plot(mapCN)+
+  draw_plot(mapCN_nineline,x = 0.715, y = 0.095, width = 0.25, height = 0.230)
+p9
+
+ggsave("sample_map.pdf",p9,device = "pdf",width =12.01,height =6.79)
+#
+#
+si<-read.csv("sample.information.csv",header = TRUE)
+si$Site <- factor(si$Site, levels = rev(c("MH","TQ","GH","JGDQ","WDLC","FL","LS","MES","MuL","CBS","WLS","DLS","HLS","TYS","TS","TBS","QL","HGS","BTM","JGS","SNJ","DJY",
+"BM","TTS","BDGS","MT","LZ","LuS","GTS","LL","ML","NYG","XGLL","WYL","WYS","KY","JGaS","MLun","GL","KM","JLS","ALS","HSD","XTS","DHS","NBH","NG","BB","JFL")))
+#
+p <- ggplot(si, aes(x = Site, y = plant_species_count, fill = Sample_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  #scale_y_continuous(expand = c(0,0))+
+  ylim(0,30)+
+  #facet_grid(group1~.)+
+  theme_bw()+
+  theme(panel.grid = element_blank(), panel.background = element_rect(color = 'black'), legend.key = element_blank(), 
+        axis.text.x = element_text(color = 'black',angle = 90,vjust = 0.85,hjust = 0.75), axis.text.y = element_text(color = 'black'), axis.ticks = element_line(color = 'black'))+
+  guides(fill = guide_legend(title = NULL))+
+  theme(text = element_text(size = 12))+
+  scale_fill_manual(values = c('blue', 'red'))+ scale_color_manual(values = c('blue', 'red'))+
+  #scale_fill_viridis_d(begin = 0,end = 1,direction = -1, alpha = 0.8)+scale_color_viridis_d(begin = 0,end = 1,direction = -1, alpha = 0.8)+#ɫ??#
+  labs(x = "Site", y = "Number of plant species", fill = "Sample_type")
+p
+#
+#拼图#
+library(ggpubr)
+library(grid)
+library(cowplot)
+
+# 将图形 p 顺时针旋转 90 度
+p_rotated <- p + coord_flip()
+
+# 将图形按比例排列
+Fig.1 <- ggarrange(
+  p9, p_rotated,
+  labels = c("a", "b"),
+  font.label = list(size = 14, face = "bold"),
+  nrow = 1,
+  ncol = 2,
+  widths = c(6, 1.5)  # 设置宽度比例
+)
+
+# 绘图
+print(Fig.1)
+
+###root.fun Diversity Index ####
+library(vegan)
+
+data<- read.csv("root.fun.otu_510.csv",head=T,row.names = 1)
+#data<-data[,c(10:1191)]
+data1<-t(data)
+head(data1)
+
+
+## Shannon index ##
+Shannon_div <- diversity(data1, "shannon")
+Shannon_div
+Sh <- data.frame(Shannon_div)
+Sh  
+
+write.csv(Sh,file="root.fun.Sh.csv")
+
+####simpson.beta.diversity###
+
+# 加载所需的包
+library(dplyr)
+library(betapart)
+library(vegan)
+
+# 处理信息数据框
+info_df <- as.data.frame(leaf.env)
+info_df <- info_df[, c(1, 5)]
+info_df <- info_df[!rownames(info_df) %in% c("ENF1066", "ENF394", "ENF837", "ENF842"), ]  # 删除指定行
+names(info_df) <- c("sample", "Site")  # 重命名列名
+
+# 处理OTU数据
+leaf.otu2 <- subset(leaf.otu, select = -c(ENF1066, ENF394, ENF837, ENF842))  # 删除指定列
+data_matrix <- as.data.frame(t(leaf.otu2))
+data_matrix[data_matrix > 0] <- 1  # 将数据矩阵中的大于0的值替换为1
+#
+#
+# 初始化结果列表
+results <- list()
+
+# 循环计算每个 Site 内部的群落相异性和质心距离
+for (i in unique(info_df$Site)) {
+  # 选择属于同一 Site 的样品
+  samples <- info_df$sample[info_df$Site == i]
+  
+  # 提取该样品的子矩阵
+  sub_matrix <- data_matrix[samples, , drop = FALSE]
+  
+  # 计算 Jaccard 相异性（beta.pair 返回一个包含多个指标的列表）
+  beta_diversity <- beta.pair(sub_matrix, index.family = "jaccard")
+  
+  # 提取 beta.jtu 值，转换为一个向量
+  beta_jtu_values <- beta_diversity$beta.jtu
+  
+  # 使用 betadisper 计算样品到质心的距离
+  # 注意：我们使用的是 beta.jtu 来计算距离矩阵
+  beta_dispersion <- betadisper(beta_jtu_values, factor(rep(i, length(samples))), type = "centroid")
+  
+  # 提取每个样本到质心的距离并转换为 numeric 向量
+  distances_to_centroid <- as.numeric(beta_dispersion$distances)
+  
+  # 创建数据框保存结果
+  result_df <- data.frame(
+    sample = samples,
+    distances_to_centroid = distances_to_centroid,
+    location_plant = i
+  )
+  
+  # 将结果添加到结果列表中
+  results[[i]] <- result_df
+}
+
+# 合并所有结果
+final_results <- do.call(rbind, results)
+
+# 将 final_results 与 info_df 按 sample 列进行合并
+merged_results <- merge(info_df, final_results, by = "sample", all.x = TRUE)
+
+# 保存合并后的新数据框为 CSV 文件
+write.csv(merged_results, "leaf.fun_simpson.csv", row.names = FALSE)
+#
+#
+#
+
+#root.fun#
+
+info_df<-as.data.frame(root.env)
+info_df<-info_df[,c(1,5)]
+#info_df<-info_df[!rownames(info_df) %in% c("ENF1066","ENF394","ENF837","ENF842"),]#通过行名删除行#
+names(info_df)<-c("sample","Site")#change col name#
+#leaf.otu2<-subset(leaf.otu,select=-c(ENF1066,ENF394,ENF837,ENF842))#通过列名删除列#
+data_matrix<-as.data.frame(t(root.otu))
+data_matrix[data_matrix > 0] <- 1
+
+# 嵌套循环挑选每个地点同一种植物OTU矩阵,然后计算相异性#
+library(dplyr)
+library(betapart)
+library(vegan)
+
+# 假设data_matrix是你的输入矩阵，info_df是你的数据框
+# info_df的第一列是地点和植物的组合信息
+
+# 初始化结果列表
+results <- list()
+
+# 循环计算每个 Site 内部的群落相异性和质心距离
+for (i in unique(info_df$Site)) {
+  # 选择属于同一 Site 的样品
+  samples <- info_df$sample[info_df$Site == i]
+  
+  # 提取该样品的子矩阵
+  sub_matrix <- data_matrix[samples, , drop = FALSE]
+  
+  # 计算 Jaccard 相异性（beta.pair 返回一个包含多个指标的列表）
+  beta_diversity <- beta.pair(sub_matrix, index.family = "jaccard")
+  
+  # 提取 beta.jtu 值，转换为一个向量
+  beta_jtu_values <- beta_diversity$beta.jtu
+  
+  # 使用 betadisper 计算样品到质心的距离
+  # 注意：我们使用的是 beta.jtu 来计算距离矩阵
+  beta_dispersion <- betadisper(beta_jtu_values, factor(rep(i, length(samples))), type = "centroid")
+  
+  # 提取每个样本到质心的距离并转换为 numeric 向量
+  distances_to_centroid <- as.numeric(beta_dispersion$distances)
+  
+  # 创建数据框保存结果
+  result_df <- data.frame(
+    sample = samples,
+    distances_to_centroid = distances_to_centroid,
+    location_plant = i
+  )
+  
+  # 将结果添加到结果列表中
+  results[[i]] <- result_df
+}
+
+# 合并所有结果
+final_results <- do.call(rbind, results)
+
+# 将 final_results 与 info_df 按 sample 列进行合并
+merged_results <- merge(info_df, final_results, by = "sample", all.x = TRUE)
+
+# 保存合并后的新数据框为 CSV 文件
+write.csv(merged_results, "root.fun_simpson.csv", row.names = FALSE)
+#
+#
+#
+leaf.beta.part<-read.csv("leaf.fun_simpson.csv",header = TRUE)
+a<-read.csv("fun.env_510.csv",header = TRUE)
+b<-merge(leaf.beta.part,a,by.x="Sample.No.",by.y="Sample.No.",all.y=TRUE)
+write.csv(b,"fun.simpson.env_510.csv")
+#
+#
+#
+#pathogenic.fungi.simposon.beta.div####
+#
+patho.otu <- read.csv("patho.otu.csv",header = TRUE,row.names = 1)
+patho.env <- read.csv("patho.env_50.csv",header = TRUE)
+rownames(patho.env)<-patho.env$Sample.No.
+#a <- colSums(patho.otu>0)
+#patho.env$patho.ric <- a
+#
+# 计算每种植物名称出现的次数
+plant_counts <- table(patho.env$PlantSiteGroup)
+
+# 2. 找到出现次数大于1的植物名称
+valid_plants <- names(plant_counts[plant_counts > 1])
+
+# 3. 找到对应的样品名称
+valid_samples <- rownames(patho.env[patho.env$PlantSiteGroup %in% valid_plants, ])
+
+# 4. 根据有效样品名称过滤矩阵
+filtered_matrix <- patho.otu[, colnames(patho.otu) %in% valid_samples, drop = FALSE]
+#
+#
+env_table<-patho.env[c(1,5)]
+env_table<-env_table[env_table$PlantSiteGroup %in% valid_plants, ]
+names(env_table)<-c("sample","Site")#change col name#
+info_df <- env_table
+data_matrix<-as.data.frame(t(filtered_matrix))
+data_matrix[data_matrix> 0] <- 1
+#
+#
+#
+# 嵌套循环挑选每个地点同一种植物OTU矩阵,然后计算相异性#
+library(dplyr)
+library(betapart)
+library(vegan)
+
+# 假设data_matrix是你的输入矩阵，info_df是你的数据框
+# info_df的第一列是地点和植物的组合信息
+
+# 初始化结果列表
+results <- list()
+
+# 循环计算每个 Site 内部的群落相异性和质心距离
+for (i in unique(info_df$Site)) {
+  # 选择属于同一 Site 的样品
+  samples <- info_df$sample[info_df$Site == i]
+  
+  # 提取该样品的子矩阵
+  sub_matrix <- data_matrix[samples, , drop = FALSE]
+  
+  # 计算 Jaccard 相异性（beta.pair 返回一个包含多个指标的列表）
+  beta_diversity <- beta.pair(sub_matrix, index.family = "jaccard")
+  
+  # 提取 beta.jtu 值，转换为一个向量
+  beta_jtu_values <- beta_diversity$beta.jtu
+  # 假设 beta_jtu_values 是计算出的 Jaccard 相异性矩阵
+  
+  # 检查是否所有的 beta_jtu_values 都是0
+  if (all(beta_jtu_values == 0)) {
+    warning("所有样本之间的 Jaccard 距离为零，跳过 betadisper 计算。")
+    next  # 跳过当前组
+  }
+  
+  # 如果不是全零，继续计算 betadisper
+  dist_matrix <- as.dist(beta_jtu_values)
+  beta_dispersion <- betadisper(dist_matrix, factor(rep(i, length(samples))), type = "centroid")
+  
+  # 提取每个样本到质心的距离
+  distances_to_centroid <- as.numeric(beta_dispersion$distances)
+  
+  # 创建数据框保存结果
+  result_df <- data.frame(
+    sample = samples,
+    distances_to_centroid = distances_to_centroid,
+    location_plant = i
+  )
+  
+  # 将结果添加到结果列表中
+  results[[i]] <- result_df
+}
+
+# 合并所有结果
+final_results <- do.call(rbind, results)
+
+# 将 final_results 与 info_df 按 sample 列进行合并
+merged_results <- merge(info_df, final_results, by = "sample", all.x = TRUE)
+
+# 保存合并后的新数据框为 CSV 文件
+write.csv(merged_results, "leaf.patho.fun_simpson.csv", row.names = FALSE)
+#
+#
+#
+leaf.beta.part<-read.csv("leaf.patho.fun_simpson.csv",header = TRUE)
+a<-read.csv("patho.env_50.csv",header = TRUE)
+b<-merge(leaf.beta.part,a,by.x="Sample.No.",by.y="Sample.No.",all.y=TRUE)
+write.csv(b,"leaf.patho.simpson.env_50.csv")
+#
+#
+#
+#####ggplot2#####
+
+library(ggplot2)
+
+##ggplot_betadisper_within.host##
+
+beta<-leaf.env[!is.na!rownames(fun.env) %in% c("ENF1066","ENF394","ENF837","ENF842"),]#通过行名删除行#
+beta$group<-factor(beta$group,levels = c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"))
+
+p <- ggplot(beta, aes(x = Latitude, y = betadisper.within.host)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6, size =1.5,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  geom_smooth(data=beta,aes(x = Latitude, y = betadisper.within.host), method ="gam",formula = y ~ x + I(x ^ 2), col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  facet_wrap(~group,nrow= 3)+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude (°)") +
+  ylab("Jaccard dissimilarity (within-host by site)") +
+  # ylim(5,25)+
+  theme_bw()+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold", "red", "navy", "darkgreen"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#图名字大小和粗细
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y轴题目文字大小和粗细
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x轴题目文字大小和粗细
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"),
+        axis.title=element_text(colour="black",size=12,face="bold"))+#坐标轴大小粗细
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p
+
+
+#加标签#
+beta1<-beta[c(1:1090),]#end.
+beta2<-beta[c(1091:2284),]#epi
+beta3<-beta[c(2285:3760),]#root
+
+x17<-epi.patho_sub$Latitude
+y17<-epi.patho_sub$patho.beta.div
+
+fit1<-lm(y17~x17,data=epi.patho_sub)###线性回归###
+summary(fit1)
+
+fit2<-lm(y17~poly(x17,2,raw=TRUE))###二次方###
+summary(fit2)
+fit3<-lm(y17~-1+poly(x17,3,raw=TRUE))###三次方###
+summary(fit3)
+AIC(fit1,fit2,fit3)###挑选AIC最小的作为拟合最好的回归###
+
+
+f_labels<-data.frame(group = c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"),
+                     f_label = c("R2 = 0.226\nP < 2.2e-16","R2 = 0.203\nP < 2.2e-16","R2 = 0.003\nP = 0.017"))
+
+f_labels$group <- factor(f_labels$group, levels = c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"))#标签按此顺序来排列
+
+
+p1<-p+  geom_text(x = 25, y=0.3, aes(label = f_label,fontface="bold"),size=4,data = f_labels)
+
+p1
+
+
+##Fig. S9##
+leaf.env_sub<-leaf.env[!is.na(leaf.env$betadisper.within.host),]
+leaf.env_sub$group<-factor(leaf.env_sub$group,levels = c("Epiphytic fungi","Endophytic fungi"))
+#
+p <- ggplot(leaf.env_sub, aes(x = Latitude, y = betadisper.within.host)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6, size =1.5,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  geom_smooth(data=leaf.env_sub,aes(x = Latitude, y = betadisper.within.host), method ="gam",formula = y ~ x + I(x ^ 2), col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  facet_wrap(~group,ncol= 2)+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude") +
+  ylab("Simpson dissimilarity of phyllosphere fungi") +
+  # ylim(5,25)+
+  theme_bw()+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold", "red", "navy", "darkgreen"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#图名字大小和粗细
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y轴题目文字大小和粗细
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x轴题目文字大小和粗细
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"),
+        axis.title=element_text(colour="black",size=12,face="bold"))+#坐标轴大小粗细
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p
+#
+end.env_sub<-end.env[!is.na(end.env$betadisper.within.host),]
+#
+x17<-end.env_sub$Latitude
+y17<-end.env_sub$betadisper.within.host
+
+fit1<-lm(y17~x17,data=end.env_sub)###线性回归###
+summary(fit1)
+
+fit2<-lm(y17~poly(x17,2,raw=TRUE))###二次方###
+summary(fit2)
+fit3<-lm(y17~-1+poly(x17,3,raw=TRUE))###三次方###
+summary(fit3)
+AIC(fit1,fit2,fit3)###挑选AIC最小的作为拟合最好的回归###
+#
+#
+f_labels<-data.frame(group = c("Epiphytic fungi","Endophytic fungi"),
+                     f_label = c("R2 = 0.234\nP < 2.2e-16","R2 = 0.146\nP < 2.2e-16"))
+
+f_labels$group <- factor(f_labels$group, levels = c("Epiphytic fungi","Endophytic fungi"))#标签按此顺序来排列
+
+
+p1<-p+  geom_text(x = 30, y=0.1, aes(label = f_label,fontface="bold"),size=4,data = f_labels)
+
+p1
+
+#ggsave("fun.leaf.root.beta_lat.pdf",p9,device = "pdf",width =6,height =4)
+
+
+
+##Fig.2a##
+
+leaf.env_sub<-leaf.env[!is.na(leaf.env$betadisper.within.host),]
+#leaf.env_sub$group<-factor(leaf.env_sub$group,levels = c("Epiphytic fungi","Endophytic fungi"))
+#
+#
+p <- ggplot(leaf.env_sub, aes(x = Latitude, y = betadisper.within.host)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6, size =1.5,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  geom_smooth(data=leaf.env_sub,aes(x = Latitude, y = betadisper.within.host), method ="gam",formula = y ~ x + I(x ^ 2), col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  #facet_wrap(~group,nrow= 3)+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude") +
+  ylab("Simpson dissimilarity of phyllosphere fungi") +
+  ylim(0,0.7)+
+  theme_bw()+
+  annotate("text",x=38,y=0.05,label="Conditional R2 = 0.388, p < 0.001\n n = 2284",size=5,color="red")+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold", "red", "navy", "darkgreen"))+
+  #scale_shape_manual(values=c(15, 16))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#图名字大小和粗细
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y轴题目文字大小和粗细
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x轴题目文字大小和粗细
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"),
+        axis.title=element_text(colour="black",size=12,face="bold"))+#坐标轴大小粗细
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p
+#
+#
+#mixed_effect_model#
+#all.fun#
+shapiro.test(leaf.env_sub$betadisper.within.host)#p-value < 2.2e-16
+leaf.env_sub$latitude2<-(leaf.env_sub$Latitude)^2
+lme0<-lme(betadisper.within.host ~ Latitude+latitude2,random = ~1|Plantsp/group,data=leaf.env_sub)
+summary(lme0)
+anova(lme0)
+r.squaredGLMM(lme0)
+
+
+#epi.fun#
+epi.env$latitude2<-(epi.env$Latitude)^2
+lme0<-lme(betadisper.within.host~Latitude+latitude2,random=~1|Plantsp,data=epi.env)
+summary(lme0)
+anova(lme0)
+r.squaredGLMM(lme0)
+
+
+#end.fun#
+end.env_sub<-end.env[!is.na(end.env$betadisper.within.host),]
+end.env_sub$latitude2<-(end.env_sub$Latitude)^2
+lme0<-lme(betadisper.within.host~Latitude+latitude2,random=~1|Plantsp,data=end.env_sub)
+summary(lme0)
+anova(lme0)
+r.squaredGLMM(lme0)
+
+
+#root.fun#
+p1 <- ggplot(root.env, aes(x = Latitude, y = betadisper.within.host)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6, size =1.5,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  #geom_smooth(data=root.env,aes(x = Latitude, y = betadisper.within.host), method ="gam",formula = y ~ x + I(x ^ 2), col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  #facet_wrap(~group,nrow= 3)+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude") +
+  ylab("Simpson dissimilarity of root-associated fungi") +
+  annotate("text",x=35,y=0.05,label="Conditional R2 = 0.129, p = 0.851\n n = 1476",size=5,color="red")+
+  ylim(0,0.7)+
+  theme_bw()+
+  scale_colour_manual(values= c("deepskyblue", "navy"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#图名字大小和粗细
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y轴题目文字大小和粗细
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x轴题目文字大小和粗细
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"),
+        axis.title=element_text(colour="black",size=12,face="bold"))+#坐标轴大小粗细
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p1
+#
+#加标签#
+
+x17<-root.env$Latitude
+y17<-root.env$betadisper.within.host
+
+fit1<-lm(y17~x17,data=root.env)###线性回归###
+summary(fit1)
+
+fit2<-lm(y17~poly(x17,2,raw=TRUE))###二次方###
+summary(fit2)
+fit3<-lm(y17~-1+poly(x17,3,raw=TRUE))###三次方###
+summary(fit3)
+AIC(fit1,fit2,fit3)###挑选AIC最小的作为拟合最好的回归###
+#
+#root.fun#
+root.env$latitude2<-(root.env$Latitude)^2
+lme0<-lme(betadisper.within.host~Latitude,random=~1|Plantsp,data=root.env)
+summary(lme0)
+anova(lme0)
+r.squaredGLMM(lme0)
+#
+#
+#epi.patho.fun##
+epi.patho_sub <- epi.patho[!is.na(epi.patho$patho.beta.div),]
+p2 <- ggplot(epi.patho_sub, aes(x = Latitude, y = patho.beta.div)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  geom_smooth(method ="lm", formula = y ~ poly(x,1),linewidth=1.5,col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  #facet_wrap(~group,nrow= 3)+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude") +
+  ylab("Simpson dissimilarity of\n epiphytic pathogenic fungi") +
+  annotate("text",x=35,y=0.05,label="Conditional R2 = 0.261, p = 0.007\n n = 299",size=5,color="red")+
+  ylim(0,0.7)+
+  theme_bw()+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold",  "navy"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#图名字大小和粗细
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y轴题目文字大小和粗细
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x轴题目文字大小和粗细
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"),
+        axis.title=element_text(colour="black",size=12,face="bold"))+#坐标轴大小粗细
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p2
+#
+#加标签#
+
+x17<-epi.patho_sub$Latitude
+y17<-epi.patho_sub$patho.beta.div
+
+fit1<-lm(y17~x17,data=epi.patho_sub)###线性回归###
+summary(fit1)
+
+fit2<-lm(y17~poly(x17,2,raw=TRUE))###二次方###
+summary(fit2)
+fit3<-lm(y17~-1+poly(x17,3,raw=TRUE))###三次方###
+summary(fit3)
+AIC(fit1,fit2,fit3)###挑选AIC最小的作为拟合最好的回归###
+#
+#root.fun#
+#root.env$latitude2<-(root.env$Latitude)^2
+lme0<-lme(patho.beta.div~Latitude,random=~1|Plantsp,data=epi.patho_sub)
+summary(lme0)
+anova(lme0)
+r.squaredGLMM(lme0)
+#
+#
+#
+library(ggpubr)
+
+Fig.2 <- ggarrange(p,p2,p1,common.legend=TRUE,legend = "right",labels = c("a","b","c"),            
+          font.label = list(size = 14, face = "bold"),nrow =1,ncol = 3)
+Fig.2
+#
+ggsave("Fig.2_simpson.pdf",Fig.2,width = 14, height =5)
+ggsave("Fig.2_simpson.tiff",plot = Fig.2, device = "tiff",width = 14,height = 5,dpi=300)  ##ggplot 中直接保存
+#
+#
+
+###Fig. S10_com.size_lat#
+
+fun.env$group<-factor(fun.env$group,levels=c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"))
+
+p2 <- ggplot(fun.env, aes(x = Latitude, y = Fungal.community.size*100)) +geom_jitter(aes(color=Superorder),  height = 0, alpha = 0.6, size =1.5,width = 1)+
+  #geom_point(shape=1,size=2,color="gray") +
+  geom_smooth(data=fun.env,aes(x = Latitude, y = Fungal.community.size*100), method ="gam",formula = y ~ x + I(x ^ 2), col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  facet_wrap(~group,ncol=3 )+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Latitude") +
+  ylab("Fungal ITS amplicon %") +
+  # ylim(5,25)+
+  theme_bw()+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold", "red", "navy", "darkgreen"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x
+        axis.title=element_text(colour="black",size=12,face="bold"),
+        legend.title = element_text(colour="black", size=12, face="bold"),
+        legend.text = element_text(colour="black", size=12, face="bold"))+#
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p2
+
+#加标签#
+
+x17<-root.env$Latitude
+y17<-root.env$Fungal.community.size
+
+fit1<-lm(y17~x17,data=root.env)###线性回归###
+summary(fit1)
+
+fit2<-lm(y17~poly(x17,2,raw=TRUE))###二次方###
+summary(fit2)
+fit3<-lm(y17~-1+poly(x17,3,raw=TRUE))###三次方###
+summary(fit3)
+AIC(fit1,fit2,fit3)###挑选AIC最小的作为拟合最好的回归###
+
+
+f_labels<-data.frame(group = c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"),
+                     f_label = c("R2 = 0.249\nP < 2.2e-16","R2 = 0.029\nP = 4.7e-08","R2 = 0.001\nP = 0.084"))
+f_labels$group <- factor(f_labels$group, levels = c("Epiphytic fungi","Endophytic fungi","Root-associated fungi"))
+
+
+p3<-p2+  geom_text(x = 30, y=20, aes(label = f_label,fontface="bold"), size=4,data = f_labels)
+
+p3
+
+ggsave("fun.com.size_lat.pdf", p3,device = "pdf",width =5, height =5)
+
+
+
+##com.size_betadisper#
+
+p4 <- ggplot(com.size, aes(x = com.size*100, y = betadisper.within.host)) + 
+  geom_point(shape=1,size=1.5,color="gray") +
+  geom_smooth(data=com.size,aes(x = com.size*100, y = betadisper.within.host), method ="lm", col= "black") +
+  #scale_colour_manual(values=c("black"))+
+  facet_wrap(~group,ncol=2,scales = "free")+  
+  #facet_grid2(~group,scales ="free",independent="all")+
+  xlab("Fungal ITS1 amplicon %") +
+  ylab("Jaccard dissimilarity (within-host by site)") +
+  # ylim(5,25)+
+  theme_bw()+
+  scale_y_continuous(limits = c(0.2, 0.7,0.1))+
+  scale_colour_manual(values= c("#ff00ff","#00ff00", "deepskyblue", "gold", "red", "navy", "darkgreen"))+
+  theme(strip.text = element_text(colour="black", size = 12,face="bold"),#
+        axis.text.y=element_text(colour="black",size=12,face="bold"),#y
+        axis.text.x=element_text(colour = "black",size=12,face="bold"),#x
+        axis.title=element_text(colour="black",size=12,face="bold"))+#
+  theme(panel.grid = element_blank())+
+  theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+p4
+
+#加label#
+#加标签#
+beta1<-beta[c(1:1090),]#end.
+beta2<-beta[c(1091:2284),]#epi
+#beta3<-beta[c(2285:3760),]#root
+library(Hmisc)
+a<-beta2[,c(26,27)]
+head(a)
+res<-rcorr(as.matrix(a),type ="spearman")
+#res<-rcorr(as.matrix(env3),type ="pearson")
+#cor.test(env1$mean.dsi,env1$MAT)
+res$r
+res$P
+
+
+f_labels<-data.frame(group = c("EPF","EDF"),
+                     f_label = c("Spearman's rho = -0.350\nP < 2.2e-16","Spearman's rho = -0.060\nP = 0.046"))
+f_labels$group <- factor(f_labels$group, levels = c("EPF","EDF"))
+
+
+p5<-p4+  geom_text(x = 70, y=0.3, aes(label = f_label,fontface="bold"), size=3,data = f_labels)
+
+p5
+
+
+library(patchwork)
+###对前3个图进行合并
+#p0<-p1+p3+ p5+plot_layout(ncol = 3, byrow =FALSE)
+#p0
+
+p0<-((p1)|(p3/p5))+plot_layout(widths = c(1.8, 1.2))
+p0
+
+p0<-p1+p3+ plot_layout(ncol = 2,widths = c(1.8, 1.5), byrow =FALSE,guides='collect')
+p0
+
+  
+  
+#A,B,C,D
+
+p_all<-p0+ plot_annotation(tag_levels = "a")&
+  theme(plot.tag = element_text(size=16,face="bold"))
+
+p_all
+
+#出图
+ggsave("fun.beta_com.size_1.pdf", p_all,device = "pdf",width =9, height =6)
+ggsave("fun.beta_com.size_1.tiff", p_all,width =9, height = 6)
+
+ggsave("p_all_1.png",width = 9,height = 6,dpi=300)  ##ggplot 中直接保存
+#
+#
